@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>脂質カウントダウン</title>
+    <style>
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; text-align: center; background: #faf8f5; color: #4a4a4a; padding: 20px; margin: 0; }
+        .card { background: white; max-width: 400px; margin: 40px auto; padding: 30px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); border: 1px solid #f1ebd9; }
+        h1 { font-size: 1.1rem; color: #8d7a5d; margin-bottom: 5px; }
+        .remaining { font-size: 4rem; font-weight: bold; color: #ff9f43; margin: 15px 0; }
+        .unit { font-size: 1.5rem; color: #8d7a5d; margin-left: 5px; }
+        
+        .input-group { margin: 20px 0; }
+        input[type="number"] { width: 75%; padding: 12px; font-size: 1.2rem; border: 2px solid #f1ebd9; border-radius: 10px; text-align: center; outline: none; transition: 0.2s; }
+        input[type="number"]:focus { border-color: #ff9f43; }
+        
+        button { width: 80%; padding: 14px; font-size: 1.2rem; font-weight: bold; background: #ff9f43; color: white; border: none; border-radius: 10px; cursor: pointer; box-shadow: 0 4px 6px rgba(255, 159, 67, 0.2); }
+        button:active { background: #ee8f32; transform: translateY(1px); }
+        
+        .settings-area { margin-top: 30px; padding-top: 20px; border-top: 1px dashed #e1d9c3; }
+        .settings-title { font-size: 0.9rem; color: #999; margin-bottom: 10px; }
+        .inline-input { width: 40% !important; padding: 6px !important; font-size: 1rem !important; margin-right: 5px; }
+        .sub-btn { width: auto; padding: 8px 15px; font-size: 0.9rem; background: #6c757d; box-shadow: none; }
+        .sub-btn:active { background: #5a6268; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h1>今日の残り脂質</h1>
+    <div class="remaining"><span id="display">50.0</span><span class="unit">g</span></div>
+
+    <div class="input-group">
+        <input type="number" id="amount" step="0.1" inputmode="decimal" placeholder="食べた脂質を入力 (g)">
+    </div>
+    <button onclick="subtract()">引く</button>
+
+    <div class="settings-area">
+        <div class="settings-title">⚙️ 目安量の設定・リセット</div>
+        <input type="number" id="limitInput" step="0.1" inputmode="decimal" class="inline-input" placeholder="例: 50.0">
+        <button class="sub-btn" onclick="setLimit()">設定してリセット</button>
+    </div>
+</div>
+
+<script>
+    // ブラウザに保存されているデータがあれば読み込み、なければ初期値50.0にする
+    let maxLimit = parseFloat(localStorage.getItem('lipid_limit')) || 50.0;
+    let currentAmount = parseFloat(localStorage.getItem('lipid_current'));
+    
+    // もし現在の残量の保存データがなければ、上限値と同じにする
+    if (isNaN(currentAmount)) {
+        currentAmount = maxLimit;
+    }
+
+    // 画面の初期表示を更新
+    document.getElementById('display').innerText = currentAmount.toFixed(1);
+    document.getElementById('limitInput').value = maxLimit.toFixed(1);
+
+    // 「引く」ボタンの処理
+    function subtract() {
+        const inputElement = document.getElementById('amount');
+        const value = parseFloat(inputElement.value);
+
+        if (!isNaN(value)) {
+            currentAmount = (currentAmount - value).toFixed(1);
+            
+            // 画面更新とブラウザへの保存
+            updateDisplayAndSave();
+            inputElement.value = '';
+        }
+    }
+
+    // 目安量を新しく設定してリセットする処理
+    function setLimit() {
+        const limitInputElement = document.getElementById('limitInput');
+        const newLimit = parseFloat(limitInputElement.value);
+
+        if (!isNaN(newLimit)) {
+            maxLimit = newLimit;
+            currentAmount = newLimit;
+            
+            // 目安量自体もブラウザに保存する
+            localStorage.setItem('lipid_limit', maxLimit);
+            updateDisplayAndSave();
+        }
+    }
+
+    // 画面表示を更新して、現在の数値をブラウザに記憶させる共通処理
+    function updateDisplayAndSave() {
+        // 表示を更新
+        document.getElementById('display').innerText = parseFloat(currentAmount).toFixed(1);
+        // 現在の残量を保存
+        localStorage.setItem('lipid_current', currentAmount);
+    }
+</script>
+
+</body>
+</html>
