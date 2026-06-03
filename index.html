@@ -6,7 +6,7 @@
     <title>脂質カウントダウン</title>
     <style>
         body { font-family: 'Helvetica Neue', Arial, sans-serif; text-align: center; background: #faf8f5; color: #4a4a4a; padding: 20px; margin: 0; }
-        .card { background: white; max-width: 400px; margin: 40px auto; padding: 30px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); border: 1px solid #f1ebd9; }
+        .card { background: white; max-width: 400px; margin: 20px auto; padding: 25px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); border: 1px solid #f1ebd9; }
         h1 { font-size: 1.1rem; color: #8d7a5d; margin-bottom: 5px; }
         .remaining { font-size: 4rem; font-weight: bold; color: #ff9f43; margin: 15px 0; }
         .unit { font-size: 1.5rem; color: #8d7a5d; margin-left: 5px; }
@@ -18,8 +18,18 @@
         button { width: 80%; padding: 14px; font-size: 1.2rem; font-weight: bold; background: #ff9f43; color: white; border: none; border-radius: 10px; cursor: pointer; box-shadow: 0 4px 6px rgba(255, 159, 67, 0.2); }
         button:active { background: #ee8f32; transform: translateY(1px); }
         
-        .settings-area { margin-top: 30px; padding-top: 20px; border-top: 1px dashed #e1d9c3; }
-        .settings-title { font-size: 0.9rem; color: #999; margin-bottom: 10px; }
+        /* 履歴エリアのスタイル */
+        .history-area { margin-top: 30px; text-align: left; }
+        .history-title { font-size: 1rem; font-weight: bold; color: #8d7a5d; border-bottom: 2px solid #f1ebd9; padding-bottom: 5px; margin-bottom: 10px; }
+        .history-list { list-style: none; padding: 0; margin: 0; max-height: 200px; overflow-y: auto; }
+        .history-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; background: #fdfbf7; border-radius: 8px; margin-bottom: 8px; border: 1px solid #f5edd6; font-size: 0.95rem; }
+        .history-time { color: #999; font-size: 0.8rem; }
+        .history-amount { font-weight: bold; color: #d9534f; }
+        .delete-btn { background: #f4f4f4; color: #aaa; border: none; border-radius: 5px; padding: 4px 8px; font-size: 0.8rem; cursor: pointer; width: auto; box-shadow: none; }
+        .delete-btn:hover { background: #e0e0e0; color: #666; }
+
+        .settings-area { margin-top: 40px; padding-top: 20px; border-top: 1px dashed #e1d9c3; }
+        .settings-title { font-size: 0.85rem; color: #999; margin-bottom: 10px; }
         .inline-input { width: 40% !important; padding: 6px !important; font-size: 1rem !important; margin-right: 5px; }
         .sub-btn { width: auto; padding: 8px 15px; font-size: 0.9rem; background: #6c757d; box-shadow: none; }
         .sub-btn:active { background: #5a6268; }
@@ -36,42 +46,103 @@
     </div>
     <button onclick="subtract()">引く</button>
 
+    <!-- 履歴表示エリア -->
+    <div class="history-area">
+        <div class="history-title">📝 今日の入力履歴</div>
+        <ul id="historyList" class="history-list">
+            <!-- ここに履歴が追加されます -->
+        </ul>
+    </div>
+
     <div class="settings-area">
-        <div class="settings-title">⚙️ 目安量の設定・リセット</div>
+        <div class="settings-title">⚙️ 目安量の設定・履歴リセット</div>
         <input type="number" id="limitInput" step="0.1" inputmode="decimal" class="inline-input" placeholder="例: 50.0">
-        <button class="sub-btn" onclick="setLimit()">設定してリセット</button>
+        <button class="sub-btn" onclick="setLimit()">設定して全リセット</button>
     </div>
 </div>
 
 <script>
-    // ブラウザに保存されているデータがあれば読み込み、なければ初期値50.0にする
     let maxLimit = parseFloat(localStorage.getItem('lipid_limit')) || 50.0;
     let currentAmount = parseFloat(localStorage.getItem('lipid_current'));
+    // 履歴の配列をブラウザから読み込む（なければ空っぽ）
+    let historyData = JSON.parse(localStorage.getItem('lipid_history')) || [];
     
-    // もし現在の残量の保存データがなければ、上限値と同じにする
     if (isNaN(currentAmount)) {
         currentAmount = maxLimit;
     }
 
-    // 画面の初期表示を更新
-    document.getElementById('display').innerText = currentAmount.toFixed(1);
+    // 初期表示の更新
     document.getElementById('limitInput').value = maxLimit.toFixed(1);
+    updateDisplayAndSave();
+    renderHistory();
 
     // 「引く」ボタンの処理
     function subtract() {
         const inputElement = document.getElementById('amount');
         const value = parseFloat(inputElement.value);
 
-        if (!isNaN(value)) {
+        if (!isNaN(value) && value > 0) {
             currentAmount = (currentAmount - value).toFixed(1);
             
-            // 画面更新とブラウザへの保存
+            // 現在の時間を取得 (例: 12:34)
+            const now = new Date();
+            const timeStr = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+            
+            // 履歴データに新しいレコードを追加 (一意のIDとしてタイムスタンプを付与)
+            const record = {
+                id: Date.now(),
+                time: timeStr,
+                amount: value.toFixed(1)
+            };
+            historyData.unshift(record); // 先頭に追加
+            
             updateDisplayAndSave();
+            renderHistory();
             inputElement.value = '';
         }
     }
 
-    // 目安量を新しく設定してリセットする処理
+    // 履歴を画面に描画する処理
+    function renderHistory() {
+        const listElement = document.getElementById('historyList');
+        listElement.innerHTML = ''; // 一度きれいににする
+
+        if (historyData.length === 0) {
+            listElement.innerHTML = '<li class="history-item" style="color:#ccc; justify-content:center;">履歴はありません</li>';
+            return;
+        }
+
+        historyData.forEach(item => {
+            const li = document.createElement('li');
+            li.className = 'history-item';
+            li.innerHTML = `
+                <div>
+                    <span class="history-time">${item.time}</span> &nbsp;&nbsp; 
+                    <span class="history-amount">-${item.amount}g</span>
+                </div>
+                <button class="delete-btn" onclick="deleteHistory(${item.id})">× 削除</button>
+            `;
+            listElement.appendChild(li);
+        });
+    }
+
+    // 履歴を1件削除（修正）する処理
+    function deleteHistory(id) {
+        // 削除したい項目を探す
+        const targetItem = historyData.find(item => item.id === id);
+        if (targetItem) {
+            // 消した分の脂質を「残量」に戻す（引き算を取り消すので足し算する）
+            currentAmount = (parseFloat(currentAmount) + parseFloat(targetItem.amount)).toFixed(1);
+            
+            // 履歴データから除外する
+            historyData = historyData.filter(item => item.id !== id);
+            
+            updateDisplayAndSave();
+            renderHistory();
+        }
+    }
+
+    // 目安量を新しく設定して全リセットする処理
     function setLimit() {
         const limitInputElement = document.getElementById('limitInput');
         const newLimit = parseFloat(limitInputElement.value);
@@ -79,19 +150,19 @@
         if (!isNaN(newLimit)) {
             maxLimit = newLimit;
             currentAmount = newLimit;
+            historyData = []; // 履歴もクリア
             
-            // 目安量自体もブラウザに保存する
             localStorage.setItem('lipid_limit', maxLimit);
             updateDisplayAndSave();
+            renderHistory();
         }
     }
 
-    // 画面表示を更新して、現在の数値をブラウザに記憶させる共通処理
+    // 共通の保存・表示更新処理
     function updateDisplayAndSave() {
-        // 表示を更新
         document.getElementById('display').innerText = parseFloat(currentAmount).toFixed(1);
-        // 現在の残量を保存
         localStorage.setItem('lipid_current', currentAmount);
+        localStorage.setItem('lipid_history', JSON.stringify(historyData)); // 履歴を保存
     }
 </script>
 
