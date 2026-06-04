@@ -11,6 +11,8 @@
         .remaining { font-size: 4rem; font-weight: bold; color: #ff9f43; margin: 15px 0; }
         .unit { font-size: 1.5rem; color: #8d7a5d; margin-left: 5px; }
         
+        .total-today { font-size: 0.95rem; color: #666; margin-bottom: 15px; background: #fff9e6; display: inline-block; padding: 5px 15px; border-radius: 20px; font-weight: bold; }
+        
         .input-group { margin: 20px 0; }
         input[type="number"] { width: 75%; padding: 12px; font-size: 1.2rem; border: 2px solid #f1ebd9; border-radius: 10px; text-align: center; outline: none; transition: 0.2s; }
         input[type="number"]:focus { border-color: #ff9f43; }
@@ -18,21 +20,26 @@
         button { width: 80%; padding: 14px; font-size: 1.2rem; font-weight: bold; background: #ff9f43; color: white; border: none; border-radius: 10px; cursor: pointer; box-shadow: 0 4px 6px rgba(255, 159, 67, 0.2); }
         button:active { background: #ee8f32; transform: translateY(1px); }
         
-        /* 履歴エリアのスタイル */
-        .history-area { margin-top: 30px; text-align: left; }
-        .history-title { font-size: 1rem; font-weight: bold; color: #8d7a5d; border-bottom: 2px solid #f1ebd9; padding-bottom: 5px; margin-bottom: 10px; }
-        .history-list { list-style: none; padding: 0; margin: 0; max-height: 200px; overflow-y: auto; }
+        .save-day-btn { background: #28a745; margin-top: 15px; font-size: 1rem; box-shadow: 0 4px 6px rgba(40, 167, 69, 0.2); }
+        .save-day-btn:active { background: #218838; }
+
+        .section-title { font-size: 1rem; font-weight: bold; color: #8d7a5d; border-bottom: 2px solid #f1ebd9; padding-bottom: 5px; margin-top: 25px; margin-bottom: 10px; text-align: left; }
+        .history-list { list-style: none; padding: 0; margin: 0; max-height: 150px; overflow-y: auto; text-align: left; }
         .history-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; background: #fdfbf7; border-radius: 8px; margin-bottom: 8px; border: 1px solid #f5edd6; font-size: 0.95rem; }
         .history-time { color: #999; font-size: 0.8rem; }
         .history-amount { font-weight: bold; color: #d9534f; }
         .delete-btn { background: #f4f4f4; color: #aaa; border: none; border-radius: 5px; padding: 4px 8px; font-size: 0.8rem; cursor: pointer; width: auto; box-shadow: none; }
-        .delete-btn:hover { background: #e0e0e0; color: #666; }
+        
+        /* 過去ログエリア */
+        .daily-log-list { list-style: none; padding: 0; margin: 0; max-height: 180px; overflow-y: auto; text-align: left; }
+        .log-item { display: flex; justify-content: space-between; padding: 10px; background: #f0f7f4; border-radius: 8px; margin-bottom: 8px; border: 1px solid #d4ede1; font-size: 0.95rem; }
+        .log-date { font-weight: bold; color: #333; }
+        .log-total { font-weight: bold; color: #28a745; }
 
         .settings-area { margin-top: 40px; padding-top: 20px; border-top: 1px dashed #e1d9c3; }
         .settings-title { font-size: 0.85rem; color: #999; margin-bottom: 10px; }
         .inline-input { width: 40% !important; padding: 6px !important; font-size: 1rem !important; margin-right: 5px; }
         .sub-btn { width: auto; padding: 8px 15px; font-size: 0.9rem; background: #6c757d; box-shadow: none; }
-        .sub-btn:active { background: #5a6268; }
     </style>
 </head>
 <body>
@@ -40,41 +47,47 @@
 <div class="card">
     <h1>今日の残り脂質</h1>
     <div class="remaining"><span id="display">50.0</span><span class="unit">g</span></div>
+    
+    <div class="total-today">今日の合計摂取量: <span id="todayTotalDisplay">0.0</span>g</div>
 
     <div class="input-group">
         <input type="number" id="amount" step="0.1" inputmode="decimal" placeholder="食べた脂質を入力 (g)">
     </div>
     <button onclick="subtract()">引く</button>
+    
+    <button class="save-day-btn" onclick="saveDailyLog()">今日の記録を確定して保存</button>
 
-    <!-- 履歴表示エリア -->
-    <div class="history-area">
-        <div class="history-title">📝 今日の入力履歴</div>
-        <ul id="historyList" class="history-list">
-            <!-- ここに履歴が追加されます -->
-        </ul>
-    </div>
+    <div class="section-title">📝 今日の入力履歴</div>
+    <ul id="historyList" class="history-list"></ul>
+
+    <div class="section-title">📊 日別の過去ログ（記録）</div>
+    <ul id="dailyLogList" class="daily-log-list"></ul>
 
     <div class="settings-area">
-        <div class="settings-title">⚙️ 目安量の設定・履歴リセット</div>
+        <div class="settings-title">⚙️ 目安量の変更（数値は維持されます）</div>
         <input type="number" id="limitInput" step="0.1" inputmode="decimal" class="inline-input" placeholder="例: 50.0">
-        <button class="sub-btn" onclick="setLimit()">設定して全リセット</button>
+        <button class="sub-btn" onclick="changeLimit()">目安量を変更</button>
+        <br><br>
+        <button class="sub-btn" style="background:#dc3545; font-size:0.8rem;" onclick="clearAllData()">⚠️ 全データを削除して初期化</button>
     </div>
 </div>
 
 <script>
     let maxLimit = parseFloat(localStorage.getItem('lipid_limit')) || 50.0;
     let currentAmount = parseFloat(localStorage.getItem('lipid_current'));
-    // 履歴の配列をブラウザから読み込む（なければ空っぽ）
     let historyData = JSON.parse(localStorage.getItem('lipid_history')) || [];
+    // 日別ログの配列を読み込む（なければ空っぽ）
+    let dailyLogs = JSON.parse(localStorage.getItem('lipid_daily_logs')) || [];
     
     if (isNaN(currentAmount)) {
         currentAmount = maxLimit;
     }
 
-    // 初期表示の更新
+    // 初期表示
     document.getElementById('limitInput').value = maxLimit.toFixed(1);
     updateDisplayAndSave();
     renderHistory();
+    renderDailyLogs();
 
     // 「引く」ボタンの処理
     function subtract() {
@@ -84,17 +97,15 @@
         if (!isNaN(value) && value > 0) {
             currentAmount = (currentAmount - value).toFixed(1);
             
-            // 現在の時間を取得 (例: 12:34)
             const now = new Date();
             const timeStr = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
             
-            // 履歴データに新しいレコードを追加 (一意のIDとしてタイムスタンプを付与)
             const record = {
                 id: Date.now(),
                 time: timeStr,
                 amount: value.toFixed(1)
             };
-            historyData.unshift(record); // 先頭に追加
+            historyData.unshift(record);
             
             updateDisplayAndSave();
             renderHistory();
@@ -102,10 +113,21 @@
         }
     }
 
-    // 履歴を画面に描画する処理
+    // 今日の合計摂取量を計算する処理
+    function calculateTodayTotal() {
+        let total = 0;
+        historyData.forEach(item => {
+            total += parseFloat(item.amount);
+        });
+        document.getElementById('todayTotalDisplay').innerText = total.toFixed(1);
+        return total.toFixed(1);
+    }
+
+    // 今日の履歴を描画
     function renderHistory() {
         const listElement = document.getElementById('historyList');
-        listElement.innerHTML = ''; // 一度きれいににする
+        listElement.innerHTML = '';
+        calculateTodayTotal();
 
         if (historyData.length === 0) {
             listElement.innerHTML = '<li class="history-item" style="color:#ccc; justify-content:center;">履歴はありません</li>';
@@ -126,35 +148,86 @@
         });
     }
 
-    // 履歴を1件削除（修正）する処理
+    // 履歴削除
     function deleteHistory(id) {
-        // 削除したい項目を探す
         const targetItem = historyData.find(item => item.id === id);
         if (targetItem) {
-            // 消した分の脂質を「残量」に戻す（引き算を取り消すので足し算する）
             currentAmount = (parseFloat(currentAmount) + parseFloat(targetItem.amount)).toFixed(1);
-            
-            // 履歴データから除外する
             historyData = historyData.filter(item => item.id !== id);
-            
             updateDisplayAndSave();
             renderHistory();
         }
     }
 
-    // 目安量を新しく設定して全リセットする処理
-    function setLimit() {
+    // 🟢 今日の記録を日別ログに「確定して保存」し、次の日の準備をする処理
+    function saveDailyLog() {
+        const todayTotal = calculateTodayTotal();
+        
+        // 今日の日付を取得 (例: 6月5日)
+        const now = new Date();
+        const dateStr = (now.getMonth() + 1) + '月' + now.getDate() + '日';
+        
+        // ログに保存するオブジェクト
+        const logRecord = {
+            id: Date.now(),
+            date: dateStr,
+            total: todayTotal
+        };
+        
+        // 過去ログの先頭に追加
+        dailyLogs.unshift(logRecord);
+        
+        // 今日の残量と履歴をリセットして次の日に備える
+        currentAmount = maxLimit;
+        historyData = [];
+        
+        localStorage.setItem('lipid_daily_logs', JSON.stringify(dailyLogs));
+        updateDisplayAndSave();
+        renderHistory();
+        renderDailyLogs();
+        
+        alert(dateStr + 'の記録（' + todayTotal + 'g）を保存して、残量をリセットしました！');
+    }
+
+    // 日別の過去ログを描画
+    function renderDailyLogs() {
+        const logListElement = document.getElementById('dailyLogList');
+        logListElement.innerHTML = '';
+
+        if (dailyLogs.length === 0) {
+            logListElement.innerHTML = '<li class="log-item" style="color:#ccc; justify-content:center;">保存された記録はありません</li>';
+            return;
+        }
+
+        dailyLogs.forEach(log => {
+            const li = document.createElement('li');
+            li.className = 'log-item';
+            li.innerHTML = `
+                <span class="log-date">📅 ${log.date}</span>
+                <span class="log-total">合計: ${log.total}g</span>
+            `;
+            logListElement.appendChild(li);
+        });
+    }
+
+    // 目安量の変更（リセットはしない）
+    function changeLimit() {
         const limitInputElement = document.getElementById('limitInput');
         const newLimit = parseFloat(limitInputElement.value);
 
         if (!isNaN(newLimit)) {
             maxLimit = newLimit;
-            currentAmount = newLimit;
-            historyData = []; // 履歴もクリア
-            
             localStorage.setItem('lipid_limit', maxLimit);
             updateDisplayAndSave();
-            renderHistory();
+            alert('目安量を ' + newLimit + 'g に変更しました。');
+        }
+    }
+
+    // アプリを完全に初期化する
+    function clearAllData() {
+        if(confirm('過去の記録も含め、すべてのデータを消去しますか？')) {
+            localStorage.clear();
+            location.reload();
         }
     }
 
@@ -162,7 +235,7 @@
     function updateDisplayAndSave() {
         document.getElementById('display').innerText = parseFloat(currentAmount).toFixed(1);
         localStorage.setItem('lipid_current', currentAmount);
-        localStorage.setItem('lipid_history', JSON.stringify(historyData)); // 履歴を保存
+        localStorage.setItem('lipid_history', JSON.stringify(historyData));
     }
 </script>
 
